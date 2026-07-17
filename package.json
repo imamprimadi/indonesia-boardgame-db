@@ -1,0 +1,8 @@
+{
+  "name": "indonesia-boardgame-database",
+  "private": true,
+  "description": "Static site + Netlify Functions for the Indonesia Boardgame Database moderation queue.",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4"
+  }
+}

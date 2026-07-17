@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.local
+.netlify/
+
+# Materi sumber besar/berhak cipta pihak lain — tidak dipakai app, tidak perlu ikut di-push
+Katalog Game Paduka.pptx
+
+# Database master lama (400+ game gabungan) — sudah tidak dipakai app ini (app pakai indonesia-games.json)
+games.json
