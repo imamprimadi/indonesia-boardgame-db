@@ -45,12 +45,9 @@
           class="w-full pl-9 pr-3 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
       </div>
       <select id="sortSelect" class="px-3 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-sm text-gray-700 focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
-        <option value="rank_asc">Urutkan: Rank terbaik</option>
-        <option value="rating_desc">Rating tertinggi</option>
-        <option value="rating_asc">Rating terendah</option>
+        <option value="name_asc">Urutkan: Nama A-Z</option>
         <option value="weight_asc">Paling ringan</option>
         <option value="weight_desc">Paling berat</option>
-        <option value="name_asc">Nama A-Z</option>
         <option value="name_desc">Nama Z-A</option>
       </select>
       <div class="flex border border-gray-300 rounded-xl overflow-hidden text-sm">
@@ -74,9 +71,6 @@
         <input type="number" id="playerCountInput" min="1" placeholder="4" class="w-16 px-2 py-1.5 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400">
         <span>orang</span>
       </div>
-      <label class="flex items-center gap-2 mt-3 text-sm text-gray-600 cursor-pointer">
-        <input type="checkbox" id="rankedOnlyChk"> Hanya yang punya rank BGG
-      </label>
     </div>
     <div>
       <h4 class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Kompleksitas (0–5)</h4>
@@ -210,9 +204,9 @@ const LS_KEY = 'idn_bgdb_games_v1';
 let games = [];
 let isLiveData = false; // true kalau berhasil connect ke Supabase (bukan cuma data cadangan lokal)
 let filters = {
-  search:'', rankedOnly:false, players:null,
+  search:'', players:null,
   weightMin:null, weightMax:null,
-  categories:new Set(), mechanics:new Set(), sort:'rank_asc'
+  categories:new Set(), mechanics:new Set(), sort:'name_asc'
 };
 let viewMode = 'grid';
 
@@ -311,9 +305,6 @@ function updateLiveBadge(){
   const el = document.getElementById('liveBadge');
   if(!el) return;
   el.textContent = isLiveData ? '🟢 Data live' : '⚪ Mode offline / demo (data bawaan)';
-}
-function fmtRank(g){
-  return (g.rank===null || g.rank===undefined || g.rank===0) ? 'NR' : ('#'+g.rank);
 }
 /* Cuma izinkan http/https sebagai link keluar — mencegah skema berbahaya (javascript:, data:, dst)
    nyelip lewat data yang diimpor/disubmit dari luar dan dieksekusi saat link-nya diklik. */
@@ -420,7 +411,6 @@ function generateLocalId(){
 function getFiltered(){
   let list = games.filter(g=>{
     if(filters.search && !g.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
-    if(filters.rankedOnly && (!g.rank || g.rank===0)) return false;
     if(filters.players){
       const p = filters.players;
       if(!(p >= (g.minplayers||1) && p <= (g.maxplayers||99))) return false;
@@ -438,11 +428,7 @@ function getFiltered(){
     return true;
   });
 
-  const rankVal = g => (g.rank===null||g.rank===undefined||g.rank===0) ? Infinity : g.rank;
   switch(filters.sort){
-    case 'rank_asc': list.sort((a,b)=> rankVal(a)-rankVal(b)); break;
-    case 'rating_desc': list.sort((a,b)=> (b.rating||0)-(a.rating||0)); break;
-    case 'rating_asc': list.sort((a,b)=> (a.rating||0)-(b.rating||0)); break;
     case 'weight_asc': list.sort((a,b)=> (a.averageweight||0)-(b.averageweight||0)); break;
     case 'weight_desc': list.sort((a,b)=> (b.averageweight||0)-(a.averageweight||0)); break;
     case 'name_asc': list.sort((a,b)=> a.name.localeCompare(b.name)); break;
@@ -480,13 +466,11 @@ function cardHtml(g){
   <div class="group bg-white/70 backdrop-blur-lg rounded-2xl border border-gray-200 overflow-hidden hover:border-orange-400 hover:shadow-lg hover:shadow-orange-500/10 transition-all hover:scale-[1.02] active:scale-[0.98] flex flex-col">
     <${coverTag} ${coverOpenAttr} class="relative block aspect-[3/4] bg-gray-100 flex items-center justify-center overflow-hidden">
       ${g.image ? `<img src="${escapeHtml(resolveImg(g.image))}" loading="lazy" alt="${escapeHtml(g.name)}" class="w-full h-full object-contain">` : `<span class="text-gray-400 font-bold text-center text-xs px-2">${escapeHtml(g.name)}</span>`}
-      <span class="absolute top-2 left-2 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white shadow">${fmtRank(g)}</span>
     </${coverTag}>
     <button onclick="openDetail(${g.id})" title="Detail" class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-black/50 text-white text-xs flex items-center justify-center hover:bg-black/70">ℹ️</button>
     <div class="p-3 flex flex-col gap-1.5 flex-1">
       <${coverTag} ${coverOpenAttr} class="font-semibold text-sm leading-snug line-clamp-2 text-gray-800 group-hover:text-orange-500 transition-colors">${escapeHtml(g.name)}</${coverTag}>
       <div class="flex items-center gap-2.5 text-[11.5px] text-gray-500">
-        <span>⭐ ${g.rating? g.rating.toFixed(2): '-'}</span>
         <span>🎯 ${g.averageweight? g.averageweight.toFixed(2): '-'}</span>
         <span>👥 ${g.minplayers||'?'}-${g.maxplayers||'?'}</span>
       </div>
@@ -520,7 +504,6 @@ function renderList(list){
         <div class="font-semibold text-sm text-gray-800 truncate">${escapeHtml(g.name)}</div>
       </a>
       <div class="hidden sm:flex gap-4 text-xs text-gray-500 flex-none">
-        <span>⭐ ${g.rating? g.rating.toFixed(2): '-'}</span>
         <span>🎯 ${g.averageweight? g.averageweight.toFixed(2): '-'}</span>
         <span>👥 ${g.minplayers||'?'}-${g.maxplayers||'?'}</span>
       </div>
@@ -696,7 +679,6 @@ document.getElementById('deleteBtn').addEventListener('click', async ()=>{
 
 /* ================= FILTER PANEL WIRING ================= */
 document.getElementById('searchInput').addEventListener('input', e=>{ filters.search = e.target.value; render(); });
-document.getElementById('rankedOnlyChk').addEventListener('change', e=>{ filters.rankedOnly = e.target.checked; render(); });
 document.getElementById('playerCountInput').addEventListener('input', e=>{
   filters.players = e.target.value ? Number(e.target.value) : null; render();
 });
@@ -725,12 +707,11 @@ document.getElementById('listViewBtn').addEventListener('click', ()=>{
 });
 
 document.getElementById('resetFiltersBtn').addEventListener('click', ()=>{
-  filters = {search:'', rankedOnly:false, players:null, weightMin:null, weightMax:null, categories:new Set(), mechanics:new Set(), sort:'rank_asc'};
+  filters = {search:'', players:null, weightMin:null, weightMax:null, categories:new Set(), mechanics:new Set(), sort:'name_asc'};
   document.getElementById('searchInput').value='';
   document.getElementById('playerCountInput').value='';
-  document.getElementById('rankedOnlyChk').checked=false;
   ['weightMin','weightMax'].forEach(id=>document.getElementById(id).value='');
-  document.getElementById('sortSelect').value='rank_asc';
+  document.getElementById('sortSelect').value='name_asc';
   document.querySelectorAll('.checklist input[type=checkbox]').forEach(cb=>cb.checked=false);
   render();
 });

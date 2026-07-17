@@ -125,9 +125,7 @@ function submissionCardHtml(s){
         <div><span class="text-gray-400">ID:</span> ${escapeHtml(p.id)}</div>
         <div><span class="text-gray-400">Nama:</span> ${escapeHtml(p.name)}</div>
         <div><span class="text-gray-400">Pemain:</span> ${escapeHtml(p.minplayers)}–${escapeHtml(p.maxplayers)}</div>
-        <div><span class="text-gray-400">Rating:</span> ${escapeHtml(p.rating)}</div>
         <div><span class="text-gray-400">Bobot:</span> ${escapeHtml(p.averageweight)}</div>
-        <div><span class="text-gray-400">Rank:</span> ${p.rank==null?'NR':escapeHtml(p.rank)}</div>
         <div class="col-span-2"><span class="text-gray-400">Kategori:</span> ${escapeHtml((p.categories||[]).join(', ')) || '-'}</div>
         <div class="col-span-2"><span class="text-gray-400">Mekanik:</span> ${escapeHtml((p.mechanics||[]).join(', ')) || '-'}</div>
         ${p.publisher ? `<div><span class="text-gray-400">Penerbit:</span> ${escapeHtml(p.publisher)}</div>` : ''}
