@@ -459,19 +459,17 @@ function grayTag(t){ return `<span class="px-2.5 py-0.5 rounded-full text-[10.5p
 function cardHtml(g){
   const cats = (g.categories||[]).slice(0,2);
   const more = (g.categories||[]).length - cats.length;
-  const url = gameUrl(g);
-  // Kalau tidak ada link keluar yang valid (mis. game katalog resmi tanpa halaman BGG), klik cover/judul
-  // buka modal Detail sebagai gantinya, bukannya mengarah ke link kosong/salah.
-  const coverOpenAttr = url ? `href="${escapeHtml(url)}" target="_blank" rel="noopener"` : `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
-  const coverTag = url ? 'a' : 'a';
+  // Klik cover/judul SELALU buka modal Detail dulu — konsisten buat semua game, ada/tidaknya link
+  // eksternal. Link keluar cuma bisa diakses lewat tombol "Buka Link" di dalam modal Detail.
+  const openAttr = `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
   return `
   <div class="group bg-white/70 backdrop-blur-lg rounded-2xl border border-gray-200 overflow-hidden hover:border-orange-400 hover:shadow-lg hover:shadow-orange-500/10 transition-all hover:scale-[1.02] active:scale-[0.98] flex flex-col">
-    <${coverTag} ${coverOpenAttr} class="relative block aspect-[3/4] bg-gray-100 flex items-center justify-center overflow-hidden">
+    <a ${openAttr} class="relative block aspect-[3/4] bg-gray-100 flex items-center justify-center overflow-hidden">
       ${g.image ? `<img src="${escapeHtml(resolveImg(g.image))}" loading="lazy" alt="${escapeHtml(g.name)}" class="w-full h-full object-contain">` : `<span class="text-gray-400 font-bold text-center text-xs px-2">${escapeHtml(g.name)}</span>`}
-    </${coverTag}>
+    </a>
     <button onclick="openDetail(${g.id})" title="Detail" class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-black/50 text-white text-xs flex items-center justify-center hover:bg-black/70">ℹ️</button>
     <div class="p-3 flex flex-col gap-1.5 flex-1">
-      <${coverTag} ${coverOpenAttr} class="font-semibold text-sm leading-snug line-clamp-2 text-gray-800 group-hover:text-orange-500 transition-colors">${escapeHtml(g.name)}</${coverTag}>
+      <a ${openAttr} class="font-semibold text-sm leading-snug line-clamp-2 text-gray-800 group-hover:text-orange-500 transition-colors">${escapeHtml(g.name)}</a>
       <div class="flex items-center gap-2.5 text-[11.5px] text-gray-500">
         <span>🎯 ${g.averageweight? g.averageweight.toFixed(2): '-'}</span>
         <span>👥 ${g.minplayers||'?'}-${g.maxplayers||'?'}</span>
@@ -494,8 +492,9 @@ function renderList(list){
   const wrap = document.getElementById('resultsWrap');
   if(!list.length){ wrap.innerHTML = emptyHtml(); return; }
   wrap.innerHTML = `<div class="flex flex-col gap-2">${list.map(g=>{
-    const url = gameUrl(g);
-    const openAttr = url ? `href="${escapeHtml(url)}" target="_blank" rel="noopener"` : `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
+    // Sama seperti kartu grid: klik baris SELALU buka modal Detail, link eksternal cuma lewat
+    // tombol "Buka Link" di dalam modal.
+    const openAttr = `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
     const thumb = g.image
       ? `<img src="${escapeHtml(resolveImg(g.image))}" loading="lazy" alt="" class="w-10 h-14 object-contain bg-gray-100 rounded-lg flex-none">`
       : `<div class="w-10 h-14 bg-gray-100 rounded-lg flex-none flex items-center justify-center text-gray-300 text-[9px] text-center px-0.5">${escapeHtml(g.name.slice(0,10))}</div>`;
