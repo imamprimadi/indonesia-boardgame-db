@@ -541,11 +541,14 @@ function openDetail(id){
   const statBox = (k,v) => `<div class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"><div class="text-[10.5px] uppercase tracking-wide text-gray-400">${k}</div><div class="text-base font-bold text-gray-800">${v}</div></div>`;
   const url = gameUrl(g);
 
-  const extraMeta = [
-    g.publisher ? ['Penerbit', g.publisher] : null,
+  // Rank & rating BGG sengaja tidak ditampilkan lagi di sini (konsisten dengan form Tambah/Edit
+  // yang juga sudah tidak punya input utk keduanya — data BGG murni, bukan sesuatu yg admin/publik
+  // input manual). Penerbit & Usia dipromosikan jadi info utama karena selalu relevan buat semua
+  // game (BGG maupun katalog non-BGG kayak Paduka Play). Seri & Durasi tetap ditampilkan sebagai
+  // info sekunder, khusus utk game yang punya datanya.
+  const secondaryMeta = [
     g.series ? ['Seri', g.series] : null,
-    g.playtime ? ['Durasi', g.playtime] : null,
-    g.age ? ['Usia', g.age] : null,
+    g.playtime ? ['Durasi Main', g.playtime] : null,
   ].filter(Boolean);
 
   document.getElementById('detailBody').innerHTML = `
@@ -553,16 +556,16 @@ function openDetail(id){
       <div class="w-full sm:w-36 flex-none aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
         ${g.image?`<img src="${escapeHtml(resolveImg(g.image))}" alt="" class="w-full h-full object-contain">`:`<span class="text-gray-400 text-xs text-center px-2">${escapeHtml(g.name)}</span>`}
       </div>
-      <div class="grid grid-cols-2 gap-2 flex-1">
-        ${statBox('Rank BGG', fmtRank(g))}
-        ${statBox('Rating', g.rating? g.rating.toFixed(2):'-')}
+      <div class="grid grid-cols-2 gap-2 flex-1 content-start">
         ${statBox('Kompleksitas', (g.averageweight? g.averageweight.toFixed(2):'-')+' / 5')}
         ${statBox('Pemain', (g.minplayers||'?')+'–'+(g.maxplayers||'?'))}
+        ${statBox('Penerbit', g.publisher ? escapeHtml(g.publisher) : '-')}
+        ${statBox('Usia', g.age ? escapeHtml(g.age) : '-')}
       </div>
     </div>
-    ${extraMeta.length ? `
+    ${secondaryMeta.length ? `
     <div class="grid grid-cols-2 gap-2 mb-4">
-      ${extraMeta.map(([k,v])=>statBox(k, escapeHtml(v))).join('')}
+      ${secondaryMeta.map(([k,v])=>statBox(k, escapeHtml(v))).join('')}
     </div>` : ''}
     ${g.description ? `<p class="text-sm text-gray-600 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 mb-4">${escapeHtml(g.description)}</p>` : ''}
     <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1.5 mt-3">Kategori</div>
