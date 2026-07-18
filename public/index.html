@@ -234,7 +234,7 @@ function sanitizeGames(list){
     return {
       id,
       name: String(g.name).slice(0,200),
-      image: g.image ? String(g.image).slice(0,2000) : '',
+      image: g.image ? String(g.image).slice(0,1500000) : '', // besar: gambar upload = data URI base64
       url: g.url ? String(g.url).slice(0,2000) : undefined,
       categories: Array.isArray(g.categories) ? g.categories.map(String).slice(0,30) : [],
       mechanics: Array.isArray(g.mechanics) ? g.mechanics.map(String).slice(0,30) : [],
@@ -603,6 +603,13 @@ function openForm(id){
 document.getElementById('f_imageFile').addEventListener('change', (e)=>{
   const file = e.target.files[0];
   if(!file) return;
+  // Gambar disimpan sebagai data URI base64. Batasi ~1MB supaya tidak melebihi cap server
+  // (1.5 juta char) — kalau kebesaran, base64-nya bakal ditolak/terpotong & gambar jadi rusak.
+  if(file.size > 1000000){
+    toast('Gambar terlalu besar (maks ~1MB). Kompres/kecilkan dulu ya.');
+    e.target.value = '';
+    return;
+  }
   const reader = new FileReader();
   reader.onload = ()=>{
     document.getElementById('f_image').value = reader.result;

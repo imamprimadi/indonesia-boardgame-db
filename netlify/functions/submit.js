@@ -3,6 +3,10 @@ const { getSupabaseAdmin } = require('./lib/supabaseAdmin');
 
 const MAX_SUBMISSIONS_PER_HOUR = 5;
 const RATE_WINDOW_MS = 60 * 60 * 1000;
+// Gambar upload disimpan sebagai data URI base64 (bisa puluhan ribu karakter), jadi field image
+// TIDAK boleh dipotong sekecil field teks biasa. ~1.5 juta char ≈ gambar ~1.1MB — cukup untuk cover,
+// tapi tetap membatasi penyalahgunaan (dikombinasi rate-limit 5/jam).
+const MAX_IMAGE_LEN = 1_500_000;
 
 function json(statusCode, obj) {
   return { statusCode, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(obj) };
@@ -108,7 +112,7 @@ exports.handler = async (event) => {
 
     // image opsional, tapi kalau diisi wajib http/https juga (kecuali data:image inline dari upload).
     // Blokir skema lain (javascript:, dst) supaya tidak nyangkut ke <img src>/href di panel admin.
-    const imageRaw = str(p.image, 2000);
+    const imageRaw = str(p.image, MAX_IMAGE_LEN);
     if (imageRaw && !/^data:image\//i.test(imageRaw) && !isSafeUrl(imageRaw)) {
       return json(400, { error: 'image harus berupa link http/https atau data:image yang valid' });
     }

@@ -96,6 +96,14 @@ function safeHttpUrl(u){
   }catch(e){}
   return '';
 }
+/* Khusus untuk <img src>: selain http/https, IZINKAN data:image/... karena gambar upload memang
+   disimpan sebagai data URI base64 (sama seperti resolveImg di index.html). data:image aman di
+   <img> (tidak bisa eksekusi skrip); yang tetap diblokir cuma skema lain (javascript:, dst). */
+function safeImgSrc(u){
+  if(!u) return '';
+  if(/^data:image\//i.test(u)) return u;
+  return safeHttpUrl(u);
+}
 
 async function getToken(){
   const { data } = await sb.auth.getSession();
@@ -137,7 +145,7 @@ function submissionCardHtml(s){
     // Skema URL/gambar dari submitter divalidasi di sini juga (bukan cuma di server) sebelum masuk
     // ke href/src — link non-http(s) tidak akan pernah jadi tautan yang bisa diklik admin.
     const safeUrl = safeHttpUrl(p.url);
-    const safeImg = safeHttpUrl(p.image);
+    const safeImg = safeImgSrc(p.image);
     bodyHtml = `
       <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-gray-600">
         <div><span class="text-gray-400">ID:</span> ${escapeHtml(p.id)}</div>
