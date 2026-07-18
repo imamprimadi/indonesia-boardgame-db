@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Indonesia Boardgame Database</title>
+<!-- Pagar tambahan (defense-in-depth): batasi dari domain mana script/style/gambar boleh dimuat,
+     dan cegah situs lain nge-iframe halaman ini. Masih izinkan 'unsafe-inline' krn app ini
+     pakai onclick inline — bukan proteksi sempurna, tapi mempersempit celah kalau suatu saat ada
+     data eksternal yang lolos dari escaping. Tailwind kini di-host sendiri (vendor/tailwind.js),
+     jadi tidak ada origin script pihak ketiga. connect-src dibatasi ke host Supabase project ini. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://wwhccyjtwbkewwlsqoth.supabase.co wss://wwhccyjtwbkewwlsqoth.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none';">
+<script src="vendor/tailwind.js"></script>
+<style>
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Inter,Arial,sans-serif;}
+  ::-webkit-scrollbar{width:8px; height:8px;}
+  ::-webkit-scrollbar-thumb{background:#fdba74; border-radius:99px;}
+  ::-webkit-scrollbar-track{background:transparent;}
+  .checklist{max-height:180px; overflow-y:auto;}
+  input[type=checkbox]{accent-color:#f97316;}
+  @keyframes pop{from{transform:scale(.96); opacity:0;} to{transform:scale(1); opacity:1;}}
+  .modal-pop{animation:pop .15s ease;}
+  .toast{transform:translate(-50%,20px); opacity:0; transition:.25s;}
+  .toast.show{transform:translate(-50%,0); opacity:1;}
+  .line-clamp-2{display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden;}
+</style>
+</head>
+<body class="min-h-screen flex flex-col bg-gradient-to-br from-[#e8edf5] via-[#d6dde8] to-[#c4d0e0] text-gray-800">
+
+<header class="text-center py-8 px-4">
+  <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight">
+    <span class="bg-gradient-to-r from-red-500 via-orange-400 to-yellow-400 bg-clip-text text-transparent">🎲 BG INDONESIA</span>
+  </h1>
+  <p class="text-gray-500 text-sm mt-2 tracking-wide">Database boardgame karya kreator Indonesia</p>
+  <p id="liveBadge" class="text-xs mt-1 text-gray-400"></p>
+</header>
+
+<main class="flex-1 w-full max-w-6xl mx-auto px-4 pb-12">
+
+  <!-- Toolbar -->
+  <div class="bg-white/70 backdrop-blur-lg rounded-2xl border border-orange-200 shadow-lg shadow-orange-500/10 p-4 flex flex-col gap-3">
+    <div class="flex flex-col md:flex-row gap-3 md:items-center">
+      <div class="relative flex-1">
+        <span class="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔎</span>
+        <input id="searchInput" type="text" placeholder="Cari judul game..."
+          class="w-full pl-9 pr-3 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-gray-800 placeholder-gray-400 focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+      </div>
+      <select id="sortSelect" class="px-3 py-2.5 bg-gray-100 border border-gray-300 rounded-xl text-sm text-gray-700 focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+        <option value="name_asc">Urutkan Nama A-Z</option>
+        <option value="weight_asc">Urutkan Paling Sederhana</option>
+        <option value="weight_desc">Urutkan Paling Kompleks</option>
+        <option value="name_desc">Urutkan Nama Z-A</option>
+      </select>
+      <div class="flex border border-gray-300 rounded-xl overflow-hidden text-sm">
+        <button id="gridViewBtn" class="px-3 py-2.5 bg-orange-500 text-white font-semibold">▦ Grid</button>
+        <button id="listViewBtn" class="px-3 py-2.5 bg-gray-100 text-gray-600">☰ List</button>
+      </div>
+    </div>
+    <div class="flex flex-wrap items-center gap-2">
+      <button id="filterToggleBtn" class="px-4 py-2 bg-gray-100 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-200 transition-all cursor-pointer text-sm font-semibold">🔍 Filter</button>
+      <button id="addBtn" class="px-4 py-2 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white font-bold rounded-xl hover:from-red-400 hover:via-orange-400 hover:to-yellow-400 transition-all cursor-pointer shadow-md shadow-orange-500/30 text-sm">➕ Tambah Game</button>
+      <div id="statbar" class="ml-auto flex flex-wrap items-center gap-2 text-xs sm:text-sm"></div>
+    </div>
+  </div>
+
+  <!-- Filter Panel (collapsible) -->
+  <div id="filterPanel" class="hidden mt-3 bg-white/70 backdrop-blur-lg rounded-2xl border border-orange-200 shadow-lg shadow-orange-500/10 p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+    <div>
+      <h4 class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Jumlah Pemain</h4>
+      <div class="flex items-center gap-2 text-sm text-gray-600">
+        <span>Main dengan</span>
+        <input type="number" id="playerCountInput" min="1" placeholder="4" class="w-16 px-2 py-1.5 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400">
+        <span>orang</span>
+      </div>
+    </div>
+    <div>
+      <h4 class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Kompleksitas (0–5)</h4>
+      <div class="flex items-center gap-2 text-sm">
+        <input type="number" id="weightMin" min="0" max="5" step="0.1" placeholder="Min" class="w-20 px-2 py-1.5 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400">
+        <span class="text-gray-400">–</span>
+        <input type="number" id="weightMax" min="0" max="5" step="0.1" placeholder="Max" class="w-20 px-2 py-1.5 bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400">
+      </div>
+      <p class="text-[11px] text-gray-400 mt-1">1 = sederhana, 5 = rumit</p>
+    </div>
+    <div>
+      <h4 class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Kategori</h4>
+      <input class="w-full mb-2 px-2 py-1.5 text-sm bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400" id="categorySearch" placeholder="Cari kategori...">
+      <div class="checklist flex flex-col gap-1 text-sm" id="categoryList"></div>
+    </div>
+    <div>
+      <h4 class="text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Mekanik</h4>
+      <input class="w-full mb-2 px-2 py-1.5 text-sm bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400" id="mechanicSearch" placeholder="Cari mekanik...">
+      <div class="checklist flex flex-col gap-1 text-sm" id="mechanicList"></div>
+    </div>
+    <div class="sm:col-span-2 lg:col-span-4">
+      <button id="resetFiltersBtn" class="text-xs text-gray-400 hover:text-orange-500 underline">↺ Reset semua filter</button>
+    </div>
+  </div>
+
+  <div id="resultsWrap" class="mt-4"></div>
+</main>
+
+<footer class="text-center py-4 px-4">
+  <p class="text-gray-400 text-xs">
+    Data disadur via <span class="font-medium">Boardgamegeek.com</span> — diolah
+    <span class="font-semibold text-orange-500">ADAKALA GAME</span>
+  </p>
+</footer>
+
+<!-- Detail Modal -->
+<div id="detailOverlay" class="hidden fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[100] items-start justify-center p-4 overflow-y-auto" style="padding-top:5vh;">
+  <div class="modal-pop bg-white rounded-2xl border border-orange-200 shadow-xl w-full max-w-xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+      <h3 id="detailTitle" class="font-bold text-lg text-gray-800">Detail</h3>
+      <button data-close="detailOverlay" class="text-gray-400 hover:text-red-500 text-xl leading-none">✕</button>
+    </div>
+    <div class="p-5" id="detailBody"></div>
+  </div>
+</div>
+
+<!-- Add/Edit Form Modal -->
+<div id="formOverlay" class="hidden fixed inset-0 bg-gray-900/50 backdrop-blur-sm z-[100] items-start justify-center p-4 overflow-y-auto" style="padding-top:5vh;">
+  <div class="modal-pop bg-white rounded-2xl border border-orange-200 shadow-xl w-full max-w-xl">
+    <div class="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+      <h3 id="formTitle" class="font-bold text-lg text-gray-800">Tambah Game</h3>
+      <button data-close="formOverlay" class="text-gray-400 hover:text-red-500 text-xl leading-none">✕</button>
+    </div>
+    <div class="p-5">
+      <p class="text-xs text-gray-500 bg-orange-50 border border-orange-200 rounded-xl px-3 py-2 mb-4">ℹ️ Usulan kamu akan direview admin dulu sebelum tayang di database publik — tidak langsung muncul buat pengunjung lain.</p>
+      <form id="gameForm">
+        <input type="hidden" id="f_editing_id">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">ID BGG</label>
+            <input type="number" id="f_id" placeholder="kosongkan kalau belum punya halaman BGG" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Nama Game *</label>
+            <input type="text" id="f_name" required class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Gambar cover</label>
+            <input type="text" id="f_image" placeholder="images/12345.jpg atau https://..." class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+            <input type="file" id="f_imageFile" accept="image/*" class="mt-2 text-xs">
+            <p class="text-xs text-gray-400 mt-1">Isi path relatif, URL gambar, atau upload file (disimpan sebagai data tertanam di JSON).</p>
+            <img id="f_imagePreview" class="hidden mt-2 w-24 h-32 object-contain bg-gray-100 rounded-lg border border-gray-200">
+          </div>
+
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Link Info *</label>
+            <input type="text" id="f_url" required placeholder="Link apa saja yang terkait game ini (BGG, toko, medsos publisher, dll.)" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400 focus:ring-1 focus:ring-orange-400">
+          </div>
+
+          <div><label class="block text-xs text-gray-500 mb-1">Min Pemain</label><input type="number" id="f_minplayers" min="1" value="1" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400"></div>
+          <div><label class="block text-xs text-gray-500 mb-1">Maks Pemain</label><input type="number" id="f_maxplayers" min="1" value="4" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400"></div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Bobot / Kompleksitas (0-5)</label>
+            <input type="number" id="f_weight" step="0.01" min="0" max="5" value="0" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400">
+            <p class="text-[11px] text-gray-400 mt-1">1 = sederhana, 5 = rumit</p>
+          </div>
+
+          <div><label class="block text-xs text-gray-500 mb-1">Penerbit</label>
+            <input type="text" id="f_publisher" list="publisherOptions" placeholder="mis. Paduka Play, atau Self Published" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400">
+            <datalist id="publisherOptions"></datalist>
+          </div>
+          <div><label class="block text-xs text-gray-500 mb-1">Usia</label><input type="text" id="f_age" placeholder="mis. 8+" class="w-full px-3 py-2 bg-gray-100 border border-gray-300 rounded-xl focus:outline-none focus:border-orange-400"></div>
+
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Kategori *</label>
+            <input class="w-full mb-1.5 px-2 py-1.5 text-xs bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400" id="f_categorySearch" placeholder="Cari kategori...">
+            <div class="checklist flex flex-col gap-1 text-sm border border-gray-200 rounded-lg p-2" id="f_categoryList"></div>
+          </div>
+          <div class="sm:col-span-2">
+            <label class="block text-xs text-gray-500 mb-1">Mekanik *</label>
+            <input class="w-full mb-1.5 px-2 py-1.5 text-xs bg-gray-100 border border-gray-300 rounded-lg focus:outline-none focus:border-orange-400" id="f_mechanicSearch" placeholder="Cari mekanik...">
+            <div class="checklist flex flex-col gap-1 text-sm border border-gray-200 rounded-lg p-2" id="f_mechanicList"></div>
+          </div>
+        </div>
+        <div class="flex flex-wrap gap-2 mt-5">
+          <button type="submit" id="formSubmitBtn" class="px-5 py-2.5 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white font-bold rounded-xl hover:from-red-400 hover:via-orange-400 hover:to-yellow-400 transition-all cursor-pointer shadow-md shadow-orange-500/30 text-sm">📨 Ajukan</button>
+          <button type="button" data-close="formOverlay" class="px-5 py-2.5 bg-gray-100 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-200 transition-all cursor-pointer text-sm">Batal</button>
+          <button type="button" id="deleteBtn" class="hidden ml-auto px-5 py-2.5 bg-red-50 border border-red-200 text-red-500 rounded-xl hover:bg-red-100 transition-all cursor-pointer text-sm">🚩 Ajukan Hapus Game Ini</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast fixed bottom-6 left-1/2 bg-gray-800 text-white text-sm px-5 py-2.5 rounded-full shadow-lg z-[200] pointer-events-none"></div>
+
+<script>
+/* ================= EMBEDDED BASE DATA (snapshot saat file ini dibuat) ================= */
+const EMBEDDED_DB = {"games":[{"id":900008,"name":"123 Tarik!","image":null,"categories":["Card Game","Math"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":8,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Traditional Game Series","playtime":"15 Min","age":"6+","description":"Tarik tambang lewat kartu; mengajarkan kerja sama dan aritmetika sederhana. Kolaborasi Traditional Games Return.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":237898,"name":"Acaraki: The Java Herbalist","image":"/images/237898.jpg","categories":["Card Game","Fantasy","Medical"],"mechanics":["Action Points","Hand Management","Set Collection","Take That"],"averageweight":1.5,"minplayers":2,"maxplayers":4,"rank":null,"rating":5.94,"url":"https://boardgamegeek.com/boardgame/237898"},{"id":900018,"name":"Affair Dice","image":null,"categories":["Deduction"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":10,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Bigger Games","playtime":"20 Min","age":"12+","description":"Deduksi detektif yang bahkan bisa dimainkan lewat video call atau grup WhatsApp.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":208901,"name":"Alkisah","image":"/images/208901.jpg","categories":["Party Game","Word Game"],"mechanics":["Storytelling"],"averageweight":1,"minplayers":2,"maxplayers":6,"rank":null,"rating":7.21,"url":"https://boardgamegeek.com/boardgame/208901"},{"id":333170,"name":"Amukti Palapa","image":"/images/333170.jpg","categories":["Abstract Strategy"],"mechanics":["Point to Point Movement"],"averageweight":0,"minplayers":2,"maxplayers":2,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/333170"},{"id":237818,"name":"Aquatico","image":"/images/237818.jpg","categories":[],"mechanics":["Area Majority / Influence","Set Collection"],"averageweight":1,"minplayers":3,"maxplayers":5,"rank":null,"rating":6.38,"url":"https://boardgamegeek.com/boardgame/237818"},{"id":283426,"name":"Ayodya: Tales of Archipelago","image":"/images/283426.jpg","categories":["Card Game","Fighting"],"mechanics":[],"averageweight":2,"minplayers":2,"maxplayers":6,"rank":null,"rating":5.67,"url":"https://boardgamegeek.com/boardgame/283426"},{"id":900015,"name":"Azimuth: Explore, Camp, Settle","image":null,"categories":["Exploration","Territory Building"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Bigger Games","playtime":"45 Min","age":"8+","description":"Jelajahi, berkemah, bangun pemukiman; mengenalkan konsep azimuth dan kartografi. Best seller Paduka.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":252943,"name":"Balap Kuliner","image":"/images/252943.png","categories":["Card Game","Party Game","Racing"],"mechanics":["Grid Movement","Open Drafting","Tile Placement"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":6,"url":"https://boardgamegeek.com/boardgame/252943"},{"id":291580,"name":"Bam Bam Aksara Jawa","image":"/images/291580.jpg","categories":["Card Game"],"mechanics":["Real-Time"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.75,"url":"https://boardgamegeek.com/boardgame/291580"},{"id":262518,"name":"Bam-Bam Race","image":"/images/262518.png","categories":["Bluffing","Racing"],"mechanics":["Action Retrieval","Hand Management","Modular Board","Race","Simultaneous Action Selection","Take That"],"averageweight":1,"minplayers":3,"maxplayers":6,"rank":null,"rating":6.5,"url":"https://boardgamegeek.com/boardgame/262518"},{"id":255671,"name":"Bluffing Billionaires","image":"/images/255671.png","categories":["Bluffing","Card Game","Party Game"],"mechanics":["Hand Management"],"averageweight":1,"minplayers":3,"maxplayers":6,"rank":26745,"rating":5.54,"url":"https://boardgamegeek.com/boardgame/255671"},{"id":900019,"name":"Branch Banking Management","image":null,"categories":["Economic","Educational"],"mechanics":[],"averageweight":0,"minplayers":5,"maxplayers":30,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Kelola cabang bank: rekrut pegawai, tarik nasabah, adaptasi kondisi pasar. Kolaborasi NuPMK.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":237825,"name":"Buto Ijo dan Timun Mas","image":"/images/237825.png","categories":[],"mechanics":["Deck, Bag, and Pool Building","Hand Management","Team-Based Game"],"averageweight":0,"minplayers":3,"maxplayers":5,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/237825"},{"id":231204,"name":"Candrageni","image":"/images/231204.jpg","categories":["Ancient","Economic"],"mechanics":["Action Points","Grid Movement","Modular Board","Variable Phase Order","Worker Placement"],"averageweight":2,"minplayers":1,"maxplayers":4,"rank":null,"rating":6.36,"url":"https://boardgamegeek.com/boardgame/231204"},{"id":900020,"name":"Catatan Cuan","image":null,"categories":["Economic","Educational"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":5,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Belajar laporan keuangan dan proses bisnis; kelola sumber daya dan ekspor barang. Kolaborasi NEXPLUS.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":327964,"name":"Celebes: The Anomalous Island","image":"/images/327964.jpg","categories":["Adventure","Exploration"],"mechanics":["Point to Point Movement","Set Collection"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.8,"url":"https://boardgamegeek.com/boardgame/327964"},{"id":271666,"name":"Cenayang: A Game of Assumptions","image":"/images/271666.jpg","categories":["Humor","Party Game","Trivia"],"mechanics":["Betting and Bluffing","Storytelling","Voting"],"averageweight":1,"minplayers":3,"maxplayers":6,"rank":null,"rating":8.04,"url":"https://boardgamegeek.com/boardgame/271666"},{"id":900011,"name":"Cuan","image":null,"categories":["Economic","Memory"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":5,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Mind Games Series","playtime":"15 Min","age":"12+","description":"Simulasi trading saham sederhana; baca tren pasar, latih memori dan minimalisasi risiko.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900003,"name":"Dicey Rally","image":null,"categories":["Racing"],"mechanics":[],"averageweight":0,"minplayers":1,"maxplayers":2,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Kraft Series","playtime":"5 Min","age":"8+","description":"Race rally berbasis dadu; peran Driver & Co-Driver, manajemen risiko dan probabilitas.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":210006,"name":"Flipeek: Medieval","image":"/images/210006.png","categories":["Abstract Strategy","Children's Game","Memory"],"mechanics":["Action Points","Memory","Modular Board","Pattern Recognition","Set Collection"],"averageweight":0,"minplayers":1,"maxplayers":5,"rank":null,"rating":7.35,"url":"https://boardgamegeek.com/boardgame/210006"},{"id":900024,"name":"Gerakata","image":null,"categories":["Educational","Party Game"],"mechanics":[],"averageweight":0,"minplayers":4,"maxplayers":8,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Kenali kata bahasa daerah lalu peragakan; charade edukatif untuk usia SD. Kolaborasi Lab Bahasa Kemendikbud.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900027,"name":"Gigit!","image":null,"categories":["Children's Game","Card Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":5,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Collaboration","playtime":"15 Min","age":null,"description":"Bangunkan Mora yang tidur tanpa kena gigit; probabilitas dasar dengan ilustrasi imut. Kolaborasi @moraolfi.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":262420,"name":"Grumantra of Dalhalla: Mahapatha","image":"/images/262420.jpg","categories":["Mythology"],"mechanics":["Action Points","Dice Rolling","Grid Movement","Modular Board","Team-Based Game"],"averageweight":0,"minplayers":2,"maxplayers":5,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/262420"},{"id":900016,"name":"Hajatan!","image":null,"categories":["Party Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Bigger Games","playtime":"45 Min","age":"12+","description":"Bawa piring, ambil hidangan favorit keluarga, pulang duluan sebelum kena gosip tetangga.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":261827,"name":"Jalan-Jalan","image":"/images/261827.png","categories":["Card Game","Party Game","Travel"],"mechanics":["Take That","Voting"],"averageweight":1,"minplayers":3,"maxplayers":5,"rank":24209,"rating":6.22,"url":"https://boardgamegeek.com/boardgame/261827"},{"id":900029,"name":"Jari-Jari","image":null,"categories":["Action / Dexterity","Party Game"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":8,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Collaboration","playtime":"15 Min","age":null,"description":"Uji kelincahan jari: sentuh jari tangan kiri dengan tangan kanan atau anggota tubuh lain. Kolaborasi Mikamiko Games.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900026,"name":"Jawara Aksara","image":null,"categories":["Educational","Word Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Kumpulkan suku kata Aksara Jawa yang benar dan rangkai jadi kata. Kolaborasi Lab Bahasa Kemendikbud.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":400495,"name":"JinxO","image":"/images/400495.jpg","categories":["Humor","Party Game"],"mechanics":[],"averageweight":1.1,"minplayers":4,"maxplayers":7,"rank":5667,"rating":7.32,"url":"https://boardgamegeek.com/boardgame/400495"},{"id":238426,"name":"Kakak Teladan Episode Belanja","image":"/images/238426.png","categories":["Card Game"],"mechanics":["Memory"],"averageweight":1,"minplayers":3,"maxplayers":8,"rank":null,"rating":7.47,"url":"https://boardgamegeek.com/boardgame/238426"},{"id":261826,"name":"Kancil","image":"/images/261826.png","categories":["Bluffing","Negotiation","Party Game"],"mechanics":["Acting","Role Playing","Take That"],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":7.27,"url":"https://boardgamegeek.com/boardgame/261826"},{"id":447733,"name":"Kata Emak","image":"/images/447733.jpg","categories":["Action / Dexterity","Card Game","Children's Game","Party Game","Real-time"],"mechanics":["Interrupts","Pattern Recognition","Race","Speed Matching"],"averageweight":0,"minplayers":2,"maxplayers":6,"rank":null,"rating":7.67,"url":"https://boardgamegeek.com/boardgame/447733"},{"id":262422,"name":"Kedai Kopi","image":"/images/262422.png","categories":[],"mechanics":["Set Collection","Worker Placement"],"averageweight":0,"minplayers":3,"maxplayers":5,"rank":null,"rating":8,"url":"https://boardgamegeek.com/boardgame/262422"},{"id":298595,"name":"Kopi Dash","image":"/images/298595.jpg","categories":["Card Game"],"mechanics":["Pattern Recognition","Speed Matching"],"averageweight":1,"minplayers":1,"maxplayers":3,"rank":null,"rating":7.43,"url":"https://boardgamegeek.com/boardgame/298595"},{"id":290037,"name":"Korowai: A Tribal Survival Game","image":"/images/290037.png","categories":["Adventure","Exploration"],"mechanics":["Auction / Bidding","Deck, Bag, and Pool Building","Push Your Luck"],"averageweight":0,"minplayers":3,"maxplayers":5,"rank":null,"rating":8.5,"url":"https://boardgamegeek.com/boardgame/290037"},{"id":900028,"name":"Kuyub","image":null,"categories":["Puzzle"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":5,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Collaboration","playtime":"15 Min","age":null,"description":"Cari jalan pulang terkering saat hujan; spatial awareness. Best Theme Implementation Bogor Game Jam 23.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":208093,"name":"Laga Jakarta","image":"/images/208093.jpg","categories":["Economic","Humor"],"mechanics":["Mancala","Modular Board","Open Drafting","Point to Point Movement","Variable Player Powers"],"averageweight":1.5,"minplayers":2,"maxplayers":5,"rank":16012,"rating":7.28,"url":"https://boardgamegeek.com/boardgame/208093"},{"id":446906,"name":"Linimasa Card Game: Nusantara Edition","image":"/images/446906.png","categories":["Card Game","Educational","Medieval","Trivia"],"mechanics":["Matching","Memory","Ordering"],"averageweight":0,"minplayers":1,"maxplayers":4,"rank":null,"rating":9,"url":"https://boardgamegeek.com/boardgame/446906"},{"id":435492,"name":"Linimasa Card Game: Sejarah Kemerdekaan Indonesia","image":"/images/435492.jpg","categories":["Card Game","Educational","Political","Trivia"],"mechanics":["Matching","Memory","Ordering","Solo / Solitaire Game"],"averageweight":1,"minplayers":1,"maxplayers":4,"rank":null,"rating":8.33,"url":"https://boardgamegeek.com/boardgame/435492"},{"id":291578,"name":"Luwenak","image":"/images/291578.jpg","categories":["Card Game"],"mechanics":["Hand Management"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/291578"},{"id":164198,"name":"Mahardika","image":"/images/164198.png","categories":["Civil War"],"mechanics":["Action Points","Cooperative Game","Dice Rolling","Point to Point Movement","Variable Player Powers"],"averageweight":0,"minplayers":4,"maxplayers":7,"rank":null,"rating":6.56,"url":"https://boardgamegeek.com/boardgame/164198"},{"id":165880,"name":"MashUp Monsters","image":"/images/165880.jpg","categories":["Card Game","Children's Game","Humor"],"mechanics":["Pattern Recognition"],"averageweight":1,"minplayers":3,"maxplayers":5,"rank":null,"rating":6.03,"url":"https://boardgamegeek.com/boardgame/165880"},{"id":148138,"name":"Mat Goceng","image":"/images/148138.png","categories":["Bluffing","Card Game","Deduction","Fighting","Party Game"],"mechanics":["Hand Management","Take That","Team-Based Game"],"averageweight":1.33,"minplayers":3,"maxplayers":6,"rank":20222,"rating":6.53,"url":"https://boardgamegeek.com/boardgame/148138"},{"id":238800,"name":"Math Cat","image":"/images/238800.jpg","categories":["Card Game","Math","Number"],"mechanics":["Hand Management","Real-Time"],"averageweight":1,"minplayers":2,"maxplayers":4,"rank":null,"rating":6,"url":"https://boardgamegeek.com/boardgame/238800"},{"id":291582,"name":"Mindblowon","image":"/images/291582.jpg","categories":["Card Game","Humor","Party Game"],"mechanics":["Card Play Conflict Resolution","Hand Management","Player Elimination","Push Your Luck","Take That","Variable Player Powers"],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":5.21,"url":"https://boardgamegeek.com/boardgame/291582"},{"id":900010,"name":"Mistis","image":null,"categories":["Bluffing","Deduction","Horror"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":6,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Mind Games Series","playtime":"15 Min","age":"12+","description":"Bertahan hidup di desa penuh fenomena supranatural; horor berbasis mitos lokal, baca pola pikir lawan.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900012,"name":"Muka2","image":null,"categories":["Party Game","Deduction"],"mechanics":[],"averageweight":0,"minplayers":4,"maxplayers":9,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Mind Games Series","playtime":"15 Min","age":"12+","description":"Pilih wajah dan temukan pasangannya lewat deskripsi fitur wajah antar pemain.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":269039,"name":"Nusa Rasa","image":"/images/269039.jpg","categories":["Economic"],"mechanics":["Area Majority / Influence","Set Collection","Take That","Worker Placement"],"averageweight":2.67,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.81,"url":"https://boardgamegeek.com/boardgame/269039"},{"id":262417,"name":"Oktet","image":"/images/262417.jpg","categories":["Party Game"],"mechanics":["Set Collection","Trading"],"averageweight":0,"minplayers":4,"maxplayers":8,"rank":null,"rating":6,"url":"https://boardgamegeek.com/boardgame/262417"},{"id":463191,"name":"One Word","image":"/images/463191.jpg","categories":["Party Game","Real-time","Word Game"],"mechanics":["Hand Management","Real-Time","Spelling"],"averageweight":0,"minplayers":2,"maxplayers":10,"rank":null,"rating":7.89,"url":"https://boardgamegeek.com/boardgame/463191"},{"id":260650,"name":"Orang Rimba: The Forest Keeper","image":"/images/260650.jpg","categories":["Environmental"],"mechanics":["Action Points","Commodity Speculation","Pick-up and Deliver","Point to Point Movement"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":7,"url":"https://boardgamegeek.com/boardgame/260650"},{"id":187739,"name":"Pagelaran Yogyakarta","image":"/images/187739.jpg","categories":["Memory","Music"],"mechanics":["Action Queue","Memory","Open Drafting","Variable Player Powers"],"averageweight":2,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.3,"url":"https://boardgamegeek.com/boardgame/187739"},{"id":900013,"name":"Parkir Kikir","image":null,"categories":["Economic"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Mind Games Series","playtime":"15 Min","age":"12+","description":"Tempatkan juru parkir liar di area strategis kota; tile placement satir.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":237821,"name":"Perahu Buru-Buru","image":"/images/237821.png","categories":["Racing","Real-time"],"mechanics":["Grid Movement"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":7,"url":"https://boardgamegeek.com/boardgame/237821"},{"id":240291,"name":"Perjuangan Jomblo","image":"/images/240291.png","categories":["Card Game"],"mechanics":["Area Majority / Influence","Hand Management","Push Your Luck"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":5.9,"url":"https://boardgamegeek.com/boardgame/240291"},{"id":448431,"name":"Pet War","image":"/images/448431.jpg","categories":["Card Game"],"mechanics":["Hand Management","Open Drafting"],"averageweight":0,"minplayers":2,"maxplayers":6,"rank":null,"rating":8,"url":"https://boardgamegeek.com/boardgame/448431"},{"id":900001,"name":"PODO","image":null,"categories":["Card Game","Party Game","Word Game"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Kraft Series","playtime":"15 Min","age":"8+","description":"Word association memory game dengan dua mode: Speed dan Combo.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900023,"name":"Raga Bahasa","image":null,"categories":["Action / Dexterity","Educational"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Cocokkan anggota tubuh dengan kartu bahasa daerah; refleks cepat. Kolaborasi Lab Bahasa Kemendikbud.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":237822,"name":"Roket Raket","image":"/images/237822.png","categories":["Sports"],"mechanics":["Hand Management","Take That"],"averageweight":1,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.58,"url":"https://boardgamegeek.com/boardgame/237822"},{"id":900004,"name":"Runner Kalcer","image":null,"categories":["Party Game","Racing"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":9,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Kraft Series","playtime":"15 Min","age":"8+","description":"Lomba maraton melawan cut-off time; probabilitas dengan sentuhan kerja sama.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900009,"name":"Satu Langit","image":null,"categories":["Card Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":6,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Traditional Game Series","playtime":"15 Min","age":"6+","description":"Adu layang-layang dengan teknik pemain profesional. Kolaborasi Traditional Games Return.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":443604,"name":"Sekata","image":"/images/443604.jpg","categories":["Card Game","Word Game"],"mechanics":["Chaining","Spelling"],"averageweight":0,"minplayers":3,"maxplayers":10,"rank":null,"rating":6.66,"url":"https://boardgamegeek.com/boardgame/443604"},{"id":290170,"name":"SEN: Save The Queen","image":"/images/290170.jpg","categories":["Abstract Strategy","Civil War","Medieval"],"mechanics":["Action Drafting","Enclosure","Grid Movement"],"averageweight":2,"minplayers":2,"maxplayers":2,"rank":null,"rating":7,"url":"https://boardgamegeek.com/boardgame/290170"},{"id":900021,"name":"Sewarga","image":null,"categories":["Educational"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":"15 Min","age":null,"description":"Mengajarkan toleransi dan inklusivitas serta keragaman suku-budaya Indonesia. Kolaborasi Pamflet Generasi & USAID.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900005,"name":"Si Anak Nakal","image":null,"categories":["Bluffing","Card Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":5,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"7 Dosa Series","playtime":"15 Min","age":"12+","description":"Reinterpretasi modern kisah Si Kancil — heist di depan brankas bersama kru Kak Mbing.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900025,"name":"Sinambung Aksara","image":null,"categories":["Educational","Word Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":"15-30 Min","age":null,"description":"Bentuk kata bahasa Indonesia memakai Aksara Jawa dan Sandhangan. Kolaborasi Lab Bahasa Kemendikbud.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":262423,"name":"Smong","image":"/images/262423.png","categories":["Fantasy"],"mechanics":["Hand Management","Point to Point Movement"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":5.33,"url":"https://boardgamegeek.com/boardgame/262423"},{"id":463195,"name":"Snaps!","image":"/images/463195.jpg","categories":["Action / Dexterity","Card Game","Party Game","Real-time","Trivia"],"mechanics":["Acting","Pattern Recognition","Speed Matching"],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":9,"url":"https://boardgamegeek.com/boardgame/463195"},{"id":251354,"name":"Stockastic: Stock Trading Game","image":"/images/251354.png","categories":["Economic"],"mechanics":["Auction / Bidding","Commodity Speculation","Simulation","Stock Holding","Trading","Variable Player Powers"],"averageweight":2,"minplayers":3,"maxplayers":6,"rank":null,"rating":5.79,"url":"https://boardgamegeek.com/boardgame/251354"},{"id":900002,"name":"Swakarsa","image":null,"categories":["Action / Dexterity","Card Game"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Kraft Series","playtime":"15 Min","age":"8+","description":"Game tepuk nyamuk bertema kerajinan tangan ramah lingkungan; melatih ketangkasan dan observasi.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900007,"name":"Takumpet","image":null,"categories":["Card Game","Memory"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Traditional Game Series","playtime":"10-20 Min","age":"6+","description":"Petak umpet dalam bentuk memory game; kolaborasi dengan komunitas Traditional Games Return.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900022,"name":"Temu Bahaya","image":null,"categories":["Educational"],"mechanics":[],"averageweight":0,"minplayers":3,"maxplayers":6,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Educational Games","playtime":null,"age":null,"description":"Strategi kesiapsiagaan dan evakuasi bencana. Kolaborasi Ekraf Design Festival.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900017,"name":"Tenun Tycoon","image":null,"categories":["Economic","Industry / Manufacturing"],"mechanics":[],"averageweight":0,"minplayers":1,"maxplayers":99,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Bigger Games","playtime":"45 Min","age":"12+","description":"Kepala divisi perusahaan tekstil; konsep Business Canvas dengan peran asimetris, dukung jumlah pemain besar.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":900006,"name":"Terka Dansa","image":null,"categories":["Party Game"],"mechanics":[],"averageweight":0,"minplayers":2,"maxplayers":2,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"7 Dosa Series","playtime":"15 Min","age":"12+","description":"Board game bertema dansa pertama di Indonesia; juara 1 kategori 2-pemain Stuck-at-Home Game Design Contest.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":402267,"name":"That's You!","image":"/images/402267.png","categories":["Humor","Party Game","Word Game"],"mechanics":["Cooperative Game","Storytelling","Voting"],"averageweight":1.33,"minplayers":4,"maxplayers":8,"rank":15510,"rating":6.95,"url":"https://boardgamegeek.com/boardgame/402267"},{"id":415238,"name":"The Adventure of Bambam: Boom","image":"/images/415238.png","categories":["Card Game","Fighting","Math"],"mechanics":["Card Play Conflict Resolution","Hand Management","Hot Potato","Kill Steal","Player Elimination","Single Loser Game"],"averageweight":1.33,"minplayers":2,"maxplayers":6,"rank":23719,"rating":6.86,"url":"https://boardgamegeek.com/boardgame/415238"},{"id":415246,"name":"The Adventure of Bambam: Cooking Class","image":"/images/415246.png","categories":["Animals","Card Game","Collectible Components","Number","Party Game"],"mechanics":["Set Collection","Trick-taking"],"averageweight":1.33,"minplayers":3,"maxplayers":6,"rank":22110,"rating":7.31,"url":"https://boardgamegeek.com/boardgame/415246"},{"id":237895,"name":"The Art of Batik","image":"/images/237895.jpg","categories":["Card Game","Industry / Manufacturing"],"mechanics":["Area Majority / Influence","Hand Management","Take That"],"averageweight":2,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.14,"url":"https://boardgamegeek.com/boardgame/237895"},{"id":165884,"name":"The Festivals","image":"/images/165884.jpg","categories":["Bluffing","Racing","Travel"],"mechanics":["Betting and Bluffing"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":23053,"rating":6.46,"url":"https://boardgamegeek.com/boardgame/165884"},{"id":244708,"name":"The Heritage of Batik","image":"/images/244708.png","categories":["Educational","Puzzle"],"mechanics":["Hand Management","Open Drafting","Pattern Building","Tile Placement"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/244708"},{"id":185032,"name":"Throne of Elements","image":"/images/185032.jpg","categories":["Abstract Strategy","Bluffing","Card Game","Fantasy","Territory Building"],"mechanics":["Area Majority / Influence","Enclosure","Modular Board","Secret Unit Deployment","Tile Placement"],"averageweight":1,"minplayers":2,"maxplayers":4,"rank":null,"rating":6.68,"url":"https://boardgamegeek.com/boardgame/185032"},{"id":244707,"name":"Timun Mas and Green Giants","image":"/images/244707.png","categories":["Abstract Strategy","Adventure","Exploration"],"mechanics":["Dice Rolling","Grid Movement","Hand Management","Modular Board"],"averageweight":0,"minplayers":2,"maxplayers":4,"rank":null,"rating":0,"url":"https://boardgamegeek.com/boardgame/244707"},{"id":289761,"name":"Toraja","image":"/images/289761.jpg","categories":["Farming","Territory Building"],"mechanics":["Open Drafting","Paper-and-Pencil","Solo / Solitaire Game"],"averageweight":0,"minplayers":1,"maxplayers":5,"rank":null,"rating":6.4,"url":"https://boardgamegeek.com/boardgame/289761"},{"id":445863,"name":"Tumbas","image":"/images/445863.png","categories":["Card Game","Children's Game","Memory"],"mechanics":["Memory"],"averageweight":0,"minplayers":3,"maxplayers":8,"rank":null,"rating":8,"url":"https://boardgamegeek.com/boardgame/445863"},{"id":900014,"name":"Ulangan Ulangin","image":null,"categories":["Party Game","Word Game"],"mechanics":[],"averageweight":0,"minplayers":4,"maxplayers":12,"rank":null,"rating":0,"url":null,"publisher":"Paduka Play","series":"Mind Games Series","playtime":"30 Min","age":"12+","description":"Tebak kata dari petunjuk si murid pintar yang pelit jawaban; asosiasi kata dan kosakata.","source":"Katalog Game Paduka (official catalog, 2026) — no BGG page"},{"id":185987,"name":"Waroong Wars","image":"/images/185987.png","categories":["Card Game","Memory"],"mechanics":["Hand Management","Memory","Open Drafting","Set Collection"],"averageweight":1.38,"minplayers":3,"maxplayers":5,"rank":17530,"rating":6.97,"url":"https://boardgamegeek.com/boardgame/185987"},{"id":261316,"name":"Waroong Wars: Second Edition","image":"/images/261316.gif","categories":["Card Game"],"mechanics":["Hand Management","Memory","Open Drafting","Set Collection","Turn Order: Progressive","Variable Player Powers"],"averageweight":1.33,"minplayers":3,"maxplayers":5,"rank":14747,"rating":7.01,"url":"https://boardgamegeek.com/boardgame/261316"}],"categories":["Abstract Strategy","Action / Dexterity","Adventure","Ancient","Animals","Bluffing","Card Game","Children's Game","Civil War","Collectible Components","Deduction","Economic","Educational","Environmental","Exploration","Fantasy","Farming","Fighting","Horror","Humor","Industry / Manufacturing","Math","Medical","Medieval","Memory","Music","Mythology","Negotiation","Number","Party Game","Political","Puzzle","Racing","Real-time","Sports","Territory Building","Travel","Trivia","Word Game"],"generatedAt":"2026-07-09T07:51:02.780Z","source":"Manual curation + BoardGameGeek scraping + official publisher catalogs (Jul 2026) — board games designed/published by Indonesian creators","note":"rank=null means BGG shows the game as Not Ranked (too few ratings). rating=0 means no user ratings recorded yet on BGG. url=null means the game has NO BoardGameGeek page — data comes from the official publisher catalog (see per-game \"source\" field) and is less complete (no mechanics/weight/rating)."};
+
+/* Koneksi ke project Supabase "indonesia-boardgame-db" — dipakai app buat ambil data LIVE dari
+   database publik tiap dibuka. SUPABASE_ANON_KEY aman ditaruh di kode frontend seperti ini — bukan
+   rahasia, aksesnya dibatasi lewat Row Level Security di server, BUKAN dengan menyembunyikan key
+   ini. Kalau suatu saat pindah/ganti project Supabase, update 2 baris ini (dan yang sama persis di
+   admin.html) dengan URL & anon key project barunya. Kalau dikosongkan, app tetap jalan pakai data
+   bawaan (offline/demo) — lihat supabase/schema.sql & supabase/seed.mjs kalau perlu setup ulang. */
+const SUPABASE_URL = "https://wwhccyjtwbkewwlsqoth.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3aGNjeWp0d2JrZXd3bHNxb3RoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM0OTM5ODMsImV4cCI6MjA5OTA2OTk4M30.pQ8zQFrP034yScF5lukLGS6Ifm876omvFnXAGdPI7L0";
+
+/* ================= STATE ================= */
+const LS_KEY = 'idn_bgdb_games_v1';
+let games = [];
+let isLiveData = false; // true kalau berhasil connect ke Supabase (bukan cuma data cadangan lokal)
+let filters = {
+  search:'', players:null,
+  weightMin:null, weightMax:null,
+  categories:new Set(), mechanics:new Set(), sort:'name_asc'
+};
+let viewMode = 'grid';
+
+/* ================= PERSISTENCE ================= */
+function loadGamesLocal(){
+  const raw = localStorage.getItem(LS_KEY);
+  if(raw){
+    try{ return JSON.parse(raw); }catch(e){ console.warn('localStorage rusak, pakai data bawaan'); }
+  }
+  return EMBEDDED_DB.games.slice();
+}
+function saveGames(){
+  localStorage.setItem(LS_KEY, JSON.stringify(games));
+}
+/* Data dari luar (URL online) tidak boleh dipercaya mentah-mentah — buang entri yang cacat/aneh
+   sebelum masuk ke state, supaya field seperti id/name yang dipakai di dalam atribut HTML
+   (onclick, dsb) nggak bisa disusupi buat injeksi. */
+function sanitizeGames(list){
+  return list.map(g=>{
+    const id = Number(g.id);
+    if(!Number.isFinite(id) || !g.name) return null;
+    return {
+      id,
+      name: String(g.name).slice(0,200),
+      image: g.image ? String(g.image).slice(0,2000) : '',
+      url: g.url ? String(g.url).slice(0,2000) : undefined,
+      categories: Array.isArray(g.categories) ? g.categories.map(String).slice(0,30) : [],
+      mechanics: Array.isArray(g.mechanics) ? g.mechanics.map(String).slice(0,30) : [],
+      averageweight: Number.isFinite(Number(g.averageweight)) ? Number(g.averageweight) : 0,
+      minplayers: Number.isFinite(Number(g.minplayers)) ? Number(g.minplayers) : 1,
+      maxplayers: Number.isFinite(Number(g.maxplayers)) ? Number(g.maxplayers) : 1,
+      rank: (g.rank===null || g.rank===undefined || g.rank==='') ? null : (Number.isFinite(Number(g.rank)) ? Number(g.rank) : null),
+      rating: Number.isFinite(Number(g.rating)) ? Number(g.rating) : 0,
+      // Field opsional utk entri katalog resmi non-BGG (mis. Paduka Play) — dipertahankan kalau ada.
+      publisher: g.publisher ? String(g.publisher).slice(0,200) : undefined,
+      series: g.series ? String(g.series).slice(0,200) : undefined,
+      playtime: g.playtime ? String(g.playtime).slice(0,100) : undefined,
+      age: g.age ? String(g.age).slice(0,50) : undefined,
+      description: g.description ? String(g.description).slice(0,2000) : undefined,
+      source: g.source ? String(g.source).slice(0,500) : undefined,
+    };
+  }).filter(Boolean);
+}
+/* Ambil data LIVE dari tabel publik `games` di Supabase (lewat REST API bawaan Supabase — PostgREST).
+   Return null kalau belum dikonfigurasi atau gagal (biar caller tau harus pakai data cadangan). */
+async function loadGamesRemote(){
+  if(!SUPABASE_URL || !SUPABASE_ANON_KEY) return null;
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/games?select=*&order=rank.asc.nullslast`, {
+      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+      cache: 'no-store',
+    });
+    if(!res.ok) throw new Error('HTTP '+res.status);
+    const rows = await res.json();
+    if(!Array.isArray(rows)) throw new Error('format data tidak dikenali');
+    return sanitizeGames(rows);
+  }catch(err){
+    console.warn('Gagal memuat data live dari Supabase, pakai data cadangan lokal.', err);
+    return null;
+  }
+}
+
+/* Kirim usulan tambah/edit/hapus ke antrean moderasi (Netlify Function -> tabel `submissions`).
+   TIDAK langsung mengubah tampilan siapapun — admin yang approve lewat admin.html. */
+async function submitProposal(type, payloadOrTargetId, submitterNote){
+  const body = type === 'delete'
+    ? { type, target_id: payloadOrTargetId, submitter_note: submitterNote }
+    : { type, payload: payloadOrTargetId, target_id: payloadOrTargetId.id, submitter_note: submitterNote };
+  const res = await fetch('/.netlify/functions/submit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json().catch(()=>({}));
+  if(!res.ok) throw new Error(data.error || ('HTTP '+res.status));
+  return data;
+}
+
+/* ================= UTIL ================= */
+function uniqueSorted(field){
+  const set = new Set();
+  games.forEach(g => (g[field]||[]).forEach(v => set.add(v)));
+  return Array.from(set).sort((a,b)=>a.localeCompare(b));
+}
+function toast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(t._timer);
+  t._timer = setTimeout(()=>t.classList.remove('show'), 2200);
+}
+function escapeHtml(str){
+  return String(str==null?'':str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function updateLiveBadge(){
+  const el = document.getElementById('liveBadge');
+  if(!el) return;
+  el.textContent = isLiveData ? '🟢 Data live' : '⚪ Mode offline / demo (data bawaan)';
+}
+/* Cuma izinkan http/https sebagai link keluar — mencegah skema berbahaya (javascript:, data:, dst)
+   nyelip lewat data yang diimpor/disubmit dari luar dan dieksekusi saat link-nya diklik. */
+function safeExternalUrl(u){
+  if(!u) return '';
+  try{
+    const parsed = new URL(u, location.href);
+    if(parsed.protocol==='http:' || parsed.protocol==='https:') return parsed.href;
+  }catch(e){}
+  return '';
+}
+function gameUrl(g){
+  const explicit = safeExternalUrl(g.url);
+  if(explicit) return explicit;
+  // Entri dari katalog resmi non-BGG (mis. Paduka Play) ditandai field `source`/`publisher` dan
+  // sengaja tidak punya `url` — jangan nebak-nebak link ke boardgamegeek.com karena tidak akan valid.
+  if(g.source || g.publisher) return '';
+  return g.id ? ('https://boardgamegeek.com/boardgame/'+g.id) : '';
+}
+/* Data pakai path server-style "/images/x.jpg" (benar utk web server / Next.js public/).
+   Tapi kalau file ini dibuka langsung via file:// (double-click), "/" berarti root drive,
+   bukan folder di sebelah index.html — jadi gambar gagal muat. Ubah jadi path relatif di sini
+   supaya jalan di kedua cara buka (double-click ATAUPUN lewat server lokal).
+   Skema selain http(s)/data:image juga diblokir sebagai proteksi tambahan. */
+function resolveImg(path){
+  if(!path) return '';
+  if(/^data:image\//i.test(path)) return path;
+  if(/^https?:\/\//i.test(path)) return path;
+  if(/^[a-z][a-z0-9+.-]*:/i.test(path)) return ''; // skema lain (javascript:, vbscript:, dll) — blokir
+  return path.replace(/^\/+/, '');
+}
+
+/* ================= FILTER PANEL BUILD ================= */
+function buildChecklist(containerId, field, searchInputId){
+  const container = document.getElementById(containerId);
+  const items = uniqueSorted(field);
+  container.innerHTML = items.map(v => `
+    <label class="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-orange-50 cursor-pointer text-gray-600">
+      <input type="checkbox" value="${escapeHtml(v)}" data-field="${field}"> ${escapeHtml(v)}
+    </label>
+  `).join('') || '<p class="text-xs text-gray-400">Tidak ada data</p>';
+  container.querySelectorAll('input[type=checkbox]').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      const setRef = field==='categories' ? filters.categories : filters.mechanics;
+      if(cb.checked) setRef.add(cb.value); else setRef.delete(cb.value);
+      render();
+    });
+  });
+  document.getElementById(searchInputId).addEventListener('input', (e)=>{
+    const q = e.target.value.toLowerCase();
+    container.querySelectorAll('label').forEach(l=>{
+      l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  });
+}
+function buildAllFilterLists(){
+  buildChecklist('categoryList','categories','categorySearch');
+  buildChecklist('mechanicList','mechanics','mechanicSearch');
+  buildPublisherDatalist();
+}
+
+/* Checklist versi form Tambah/Edit (pilih kategori/mekanik dari daftar yang SUDAH ADA saja —
+   dikunci, bukan ketik bebas — supaya taksonomi tetap konsisten dgn data BGG). */
+function buildFormChecklist(containerId, field, searchInputId, selected){
+  const container = document.getElementById(containerId);
+  const items = uniqueSorted(field);
+  const selectedSet = new Set(selected||[]);
+  container.innerHTML = items.map(v => `
+    <label class="flex items-center gap-2 px-1.5 py-1 rounded-lg hover:bg-orange-50 cursor-pointer text-gray-600">
+      <input type="checkbox" value="${escapeHtml(v)}" ${selectedSet.has(v)?'checked':''}> ${escapeHtml(v)}
+    </label>
+  `).join('') || '<p class="text-xs text-gray-400">Tidak ada data</p>';
+  document.getElementById(searchInputId).oninput = (e)=>{
+    const q = e.target.value.toLowerCase();
+    container.querySelectorAll('label').forEach(l=>{
+      l.style.display = l.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
+  };
+}
+function getCheckedValues(containerId){
+  return Array.from(document.querySelectorAll('#'+containerId+' input:checked')).map(cb=>cb.value);
+}
+
+/* Saran ketik nama penerbit dari yang sudah pernah dipakai, + "Self Published" selalu tersedia
+   sebagai opsi (biar konsisten kalau nanti mau dipakai jadi filter). */
+function buildPublisherDatalist(){
+  const dl = document.getElementById('publisherOptions');
+  if(!dl) return;
+  const set = new Set(['Self Published']);
+  games.forEach(g => { if(g.publisher) set.add(g.publisher); });
+  dl.innerHTML = Array.from(set).sort((a,b)=>a.localeCompare(b)).map(p=>`<option value="${escapeHtml(p)}">`).join('');
+}
+
+/* ID BGG di form Tambah Game boleh dikosongkan (game yang belum punya halaman BGG) — kalau kosong,
+   sistem generate ID internal sendiri (rentang 900000+, sama seperti skema game katalog non-BGG). */
+function generateLocalId(){
+  const used = new Set(games.map(g=>g.id));
+  let candidate = 900000;
+  while(used.has(candidate)) candidate++;
+  return candidate;
+}
+
+/* ================= FILTER + SORT LOGIC ================= */
+function getFiltered(){
+  let list = games.filter(g=>{
+    if(filters.search && !g.name.toLowerCase().includes(filters.search.toLowerCase())) return false;
+    if(filters.players){
+      const p = filters.players;
+      if(!(p >= (g.minplayers||1) && p <= (g.maxplayers||99))) return false;
+    }
+    if(filters.weightMin!=null && (g.averageweight||0) < filters.weightMin) return false;
+    if(filters.weightMax!=null && (g.averageweight||0) > filters.weightMax) return false;
+    if(filters.categories.size){
+      const cats = g.categories||[];
+      for(const c of filters.categories) if(!cats.includes(c)) return false;
+    }
+    if(filters.mechanics.size){
+      const mechs = g.mechanics||[];
+      for(const m of filters.mechanics) if(!mechs.includes(m)) return false;
+    }
+    return true;
+  });
+
+  switch(filters.sort){
+    case 'weight_asc': list.sort((a,b)=> (a.averageweight||0)-(b.averageweight||0)); break;
+    case 'weight_desc': list.sort((a,b)=> (b.averageweight||0)-(a.averageweight||0)); break;
+    case 'name_asc': list.sort((a,b)=> a.name.localeCompare(b.name)); break;
+    case 'name_desc': list.sort((a,b)=> b.name.localeCompare(a.name)); break;
+  }
+  return list;
+}
+
+/* ================= RENDER ================= */
+function render(){
+  const list = getFiltered();
+  renderStats(list);
+  if(viewMode==='grid') renderGrid(list); else renderList(list);
+}
+
+function renderStats(list){
+  const total = games.length;
+  const pill = (label,val) => `<div class="bg-white/70 backdrop-blur-lg border border-orange-200 rounded-full px-3.5 py-1.5 text-gray-600">${label}: <b class="text-gray-800">${val}</b></div>`;
+  document.getElementById('statbar').innerHTML =
+    pill('Ditampilkan', list.length+' / '+total);
+}
+
+function pillTag(t, extra){ return `<span class="px-2.5 py-0.5 rounded-full text-[10.5px] font-semibold bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white ${extra||''}">${escapeHtml(t)}</span>`; }
+function grayTag(t){ return `<span class="px-2.5 py-0.5 rounded-full text-[10.5px] bg-gray-100 text-gray-500">${escapeHtml(t)}</span>`; }
+
+function cardHtml(g){
+  const cats = (g.categories||[]).slice(0,2);
+  const more = (g.categories||[]).length - cats.length;
+  // Klik cover/judul SELALU buka modal Detail dulu — konsisten buat semua game, ada/tidaknya link
+  // eksternal. Link keluar cuma bisa diakses lewat tombol "Buka Link" di dalam modal Detail.
+  const openAttr = `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
+  return `
+  <div class="group bg-white/70 backdrop-blur-lg rounded-2xl border border-gray-200 overflow-hidden hover:border-orange-400 hover:shadow-lg hover:shadow-orange-500/10 transition-all hover:scale-[1.02] active:scale-[0.98] flex flex-col">
+    <a ${openAttr} class="relative block aspect-[3/4] bg-gray-100 flex items-center justify-center overflow-hidden">
+      ${g.image ? `<img src="${escapeHtml(resolveImg(g.image))}" loading="lazy" alt="${escapeHtml(g.name)}" class="w-full h-full object-contain">` : `<span class="text-gray-400 font-bold text-center text-xs px-2">${escapeHtml(g.name)}</span>`}
+    </a>
+    <button onclick="openDetail(${g.id})" title="Detail" class="absolute top-2 right-2 z-10 w-6 h-6 rounded-full bg-black/50 text-white text-xs flex items-center justify-center hover:bg-black/70">ℹ️</button>
+    <div class="p-3 flex flex-col gap-1.5 flex-1">
+      <a ${openAttr} class="font-semibold text-sm leading-snug line-clamp-2 text-gray-800 group-hover:text-orange-500 transition-colors">${escapeHtml(g.name)}</a>
+      <div class="flex items-center gap-2.5 text-[11.5px] text-gray-500">
+        <span>🎯 ${g.averageweight? g.averageweight.toFixed(2): '-'}</span>
+        <span>👥 ${g.minplayers||'?'}-${g.maxplayers||'?'}</span>
+      </div>
+      <div class="flex flex-wrap gap-1 mt-auto pt-1">
+        ${cats.map(c=>pillTag(c)).join('')}
+        ${more>0?grayTag('+'+more):''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderGrid(list){
+  const wrap = document.getElementById('resultsWrap');
+  if(!list.length){ wrap.innerHTML = emptyHtml(); return; }
+  wrap.innerHTML = `<div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">${list.map(g=>`<div class="relative">${cardHtml(g)}</div>`).join('')}</div>`;
+}
+
+function renderList(list){
+  const wrap = document.getElementById('resultsWrap');
+  if(!list.length){ wrap.innerHTML = emptyHtml(); return; }
+  wrap.innerHTML = `<div class="flex flex-col gap-2">${list.map(g=>{
+    // Sama seperti kartu grid: klik baris SELALU buka modal Detail, link eksternal cuma lewat
+    // tombol "Buka Link" di dalam modal.
+    const openAttr = `href="javascript:void(0)" onclick="openDetail(${g.id})"`;
+    const thumb = g.image
+      ? `<img src="${escapeHtml(resolveImg(g.image))}" loading="lazy" alt="" class="w-10 h-14 object-contain bg-gray-100 rounded-lg flex-none">`
+      : `<div class="w-10 h-14 bg-gray-100 rounded-lg flex-none flex items-center justify-center text-gray-300 text-[9px] text-center px-0.5">${escapeHtml(g.name.slice(0,10))}</div>`;
+    return `
+    <div class="flex items-center gap-3 bg-white/70 backdrop-blur-lg border border-gray-200 rounded-xl px-3 py-2 hover:border-orange-400 transition-all">
+      <a ${openAttr} class="flex items-center gap-3 flex-1 min-w-0">
+        ${thumb}
+        <div class="font-semibold text-sm text-gray-800 truncate">${escapeHtml(g.name)}</div>
+      </a>
+      <div class="hidden sm:flex gap-4 text-xs text-gray-500 flex-none">
+        <span>🎯 ${g.averageweight? g.averageweight.toFixed(2): '-'}</span>
+        <span>👥 ${g.minplayers||'?'}-${g.maxplayers||'?'}</span>
+      </div>
+      <button onclick="openDetail(${g.id})" title="Detail" class="w-7 h-7 rounded-full bg-gray-100 text-orange-500 font-bold flex items-center justify-center hover:bg-orange-100 flex-none">→</button>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+function emptyHtml(){
+  return `<div class="text-center py-16 text-gray-400"><div class="text-4xl mb-3">🔍</div>Tidak ada game yang cocok dengan filter ini.<br>Coba longgarkan filter atau reset.</div>`;
+}
+
+/* ================= DETAIL MODAL ================= */
+function openDetail(id){
+  const g = games.find(x=>x.id===id);
+  if(!g) return;
+  document.getElementById('detailTitle').textContent = g.name;
+  const statBox = (k,v) => `<div class="bg-gray-50 border border-gray-200 rounded-xl px-3 py-2"><div class="text-[10.5px] uppercase tracking-wide text-gray-400">${k}</div><div class="text-base font-bold text-gray-800">${v}</div></div>`;
+  const url = gameUrl(g);
+
+  // Rank & rating BGG sengaja tidak ditampilkan lagi di sini (konsisten dengan form Tambah/Edit
+  // yang juga sudah tidak punya input utk keduanya — data BGG murni, bukan sesuatu yg admin/publik
+  // input manual). Penerbit & Usia dipromosikan jadi info utama karena selalu relevan buat semua
+  // game (BGG maupun katalog non-BGG kayak Paduka Play). Seri & Durasi tetap ditampilkan sebagai
+  // info sekunder, khusus utk game yang punya datanya.
+  const secondaryMeta = [
+    g.series ? ['Seri', g.series] : null,
+    g.playtime ? ['Durasi Main', g.playtime] : null,
+  ].filter(Boolean);
+
+  document.getElementById('detailBody').innerHTML = `
+    <div class="flex flex-col sm:flex-row gap-4 mb-4">
+      <div class="w-full sm:w-36 flex-none aspect-[3/4] bg-gray-100 rounded-xl overflow-hidden flex items-center justify-center">
+        ${g.image?`<img src="${escapeHtml(resolveImg(g.image))}" alt="" class="w-full h-full object-contain">`:`<span class="text-gray-400 text-xs text-center px-2">${escapeHtml(g.name)}</span>`}
+      </div>
+      <div class="grid grid-cols-2 gap-2 flex-1 content-start">
+        ${statBox('Kompleksitas', (g.averageweight? g.averageweight.toFixed(2):'-')+' / 5')}
+        ${statBox('Pemain', (g.minplayers||'?')+'–'+(g.maxplayers||'?'))}
+        ${statBox('Penerbit', g.publisher ? escapeHtml(g.publisher) : '-')}
+        ${statBox('Usia', g.age ? escapeHtml(g.age) : '-')}
+      </div>
+    </div>
+    ${secondaryMeta.length ? `
+    <div class="grid grid-cols-2 gap-2 mb-4">
+      ${secondaryMeta.map(([k,v])=>statBox(k, escapeHtml(v))).join('')}
+    </div>` : ''}
+    ${g.description ? `<p class="text-sm text-gray-600 bg-orange-50 border border-orange-100 rounded-xl px-3 py-2 mb-4">${escapeHtml(g.description)}</p>` : ''}
+    <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1.5 mt-3">Kategori</div>
+    <div class="flex flex-wrap gap-1.5">${(g.categories||[]).map(c=>pillTag(c)).join('') || '<span class="text-xs text-gray-400">Tidak ada data</span>'}</div>
+    <div class="text-xs uppercase tracking-wide text-gray-400 font-semibold mb-1.5 mt-3">Mekanik</div>
+    <div class="flex flex-wrap gap-1.5">${(g.mechanics||[]).map(m=>grayTag(m)).join('') || '<span class="text-xs text-gray-400">Tidak ada data</span>'}</div>
+    <div class="flex flex-wrap gap-2 mt-5">
+      ${url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener" class="px-4 py-2 bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500 text-white font-bold rounded-xl hover:from-red-400 hover:via-orange-400 hover:to-yellow-400 transition-all shadow-md shadow-orange-500/30 text-sm">🔗 Buka Link</a>`
+        : `<span class="px-4 py-2 bg-gray-50 border border-gray-200 text-gray-400 rounded-xl text-sm">🔗 Belum ada link resmi</span>`}
+      <button onclick="openForm(${g.id})" class="px-4 py-2 bg-gray-100 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-200 transition-all text-sm">✏️ Edit</button>
+      <button data-close="detailOverlay" class="px-4 py-2 bg-gray-100 border border-gray-300 text-gray-600 rounded-xl hover:bg-gray-200 transition-all text-sm">Tutup</button>
+    </div>
+  `;
+  showOverlay('detailOverlay');
+}
+
+/* ================= ADD / EDIT FORM ================= */
+function openForm(id){
+  const editing = id!=null;
+  document.getElementById('formTitle').textContent = editing ? 'Edit Game' : 'Tambah Game Baru';
+  document.getElementById('gameForm').reset();
+  document.getElementById('f_imagePreview').classList.add('hidden');
+  document.getElementById('deleteBtn').classList.toggle('hidden', !editing);
+  document.getElementById('f_editing_id').value = editing ? id : '';
+  document.getElementById('f_id').disabled = false;
+
+  const g = editing ? games.find(x=>x.id===id) : null;
+  buildFormChecklist('f_categoryList','categories','f_categorySearch', g ? g.categories : []);
+  buildFormChecklist('f_mechanicList','mechanics','f_mechanicSearch', g ? g.mechanics : []);
+  buildPublisherDatalist();
+
+  if(g){
+    document.getElementById('f_id').value = g.id;
+    document.getElementById('f_id').disabled = true;
+    document.getElementById('f_name').value = g.name||'';
+    document.getElementById('f_image').value = g.image||'';
+    document.getElementById('f_url').value = g.url||'';
+    document.getElementById('f_minplayers').value = g.minplayers||1;
+    document.getElementById('f_maxplayers').value = g.maxplayers||4;
+    document.getElementById('f_weight').value = g.averageweight||0;
+    document.getElementById('f_publisher').value = g.publisher||'';
+    document.getElementById('f_age').value = g.age||'';
+    if(g.image){ document.getElementById('f_imagePreview').src = resolveImg(g.image); document.getElementById('f_imagePreview').classList.remove('hidden'); }
+  }
+  hideOverlay('detailOverlay');
+  showOverlay('formOverlay');
+}
+
+document.getElementById('f_imageFile').addEventListener('change', (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    document.getElementById('f_image').value = reader.result;
+    document.getElementById('f_imagePreview').src = reader.result;
+    document.getElementById('f_imagePreview').classList.remove('hidden');
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('f_image').addEventListener('input', (e)=>{
+  if(e.target.value){ document.getElementById('f_imagePreview').src = resolveImg(e.target.value); document.getElementById('f_imagePreview').classList.remove('hidden'); }
+});
+
+document.getElementById('gameForm').addEventListener('submit', async (e)=>{
+  e.preventDefault();
+  const editingIdRaw = document.getElementById('f_editing_id').value;
+  const isEditing = editingIdRaw !== '';
+  const idRaw = document.getElementById('f_id').value.trim();
+  const id = isEditing ? Number(editingIdRaw) : (idRaw ? Number(idRaw) : generateLocalId());
+  if(!isEditing && games.some(g=>g.id===id)){ toast('ID sudah dipakai game lain! Kosongkan saja biar dibuatkan otomatis.'); return; }
+
+  const url = document.getElementById('f_url').value.trim();
+  if(!url){ toast('Link Info wajib diisi'); return; }
+
+  const categories = getCheckedValues('f_categoryList');
+  if(!categories.length){ toast('Pilih minimal 1 kategori'); return; }
+  const mechanics = getCheckedValues('f_mechanicList');
+  if(!mechanics.length){ toast('Pilih minimal 1 mekanik'); return; }
+
+  const payload = {
+    id,
+    name: document.getElementById('f_name').value.trim(),
+    image: document.getElementById('f_image').value.trim(),
+    url,
+    categories,
+    mechanics,
+    averageweight: Number(document.getElementById('f_weight').value)||0,
+    minplayers: Number(document.getElementById('f_minplayers').value)||1,
+    maxplayers: Number(document.getElementById('f_maxplayers').value)||1,
+    rank: null,
+    rating: 0,
+    publisher: document.getElementById('f_publisher').value.trim() || undefined,
+    age: document.getElementById('f_age').value.trim() || undefined,
+  };
+
+  const submitBtn = document.getElementById('formSubmitBtn');
+  submitBtn.disabled = true; submitBtn.textContent = 'Mengirim...';
+  try{
+    if(!SUPABASE_URL){
+      throw new Error('Fitur submit belum aktif — SUPABASE_URL/ANON_KEY belum dikonfigurasi di app ini.');
+    }
+    await submitProposal(isEditing ? 'edit' : 'add', payload, '');
+    toast(isEditing ? 'Usulan edit terkirim, menunggu review admin' : 'Usulan game baru terkirim, menunggu review admin');
+    hideOverlay('formOverlay');
+  }catch(err){
+    alert('Gagal mengirim usulan:\n'+err.message);
+  }finally{
+    submitBtn.disabled = false; submitBtn.textContent = '📨 Ajukan';
+  }
+});
+
+document.getElementById('deleteBtn').addEventListener('click', async ()=>{
+  const id = Number(document.getElementById('f_editing_id').value);
+  const g = games.find(x=>x.id===id);
+  if(!confirm(`Ajukan penghapusan "${g?g.name:id}" dari database? Permintaan ini akan direview admin dulu.`)) return;
+  try{
+    if(!SUPABASE_URL){
+      throw new Error('Fitur submit belum aktif — SUPABASE_URL/ANON_KEY belum dikonfigurasi di app ini.');
+    }
+    await submitProposal('delete', id, '');
+    toast('Usulan hapus terkirim, menunggu review admin');
+    hideOverlay('formOverlay');
+  }catch(err){
+    alert('Gagal mengirim usulan:\n'+err.message);
+  }
+});
+
+/* ================= FILTER PANEL WIRING ================= */
+document.getElementById('searchInput').addEventListener('input', e=>{ filters.search = e.target.value; render(); });
+document.getElementById('playerCountInput').addEventListener('input', e=>{
+  filters.players = e.target.value ? Number(e.target.value) : null; render();
+});
+['weightMin','weightMax'].forEach(id=>{
+  document.getElementById(id).addEventListener('input', e=>{
+    filters[id] = e.target.value!=='' ? Number(e.target.value) : null; render();
+  });
+});
+document.getElementById('sortSelect').addEventListener('change', e=>{ filters.sort = e.target.value; render(); });
+
+document.getElementById('filterToggleBtn').addEventListener('click', ()=>{
+  document.getElementById('filterPanel').classList.toggle('hidden');
+});
+
+document.getElementById('gridViewBtn').addEventListener('click', ()=>{
+  viewMode='grid';
+  document.getElementById('gridViewBtn').className='px-3 py-2.5 bg-orange-500 text-white font-semibold';
+  document.getElementById('listViewBtn').className='px-3 py-2.5 bg-gray-100 text-gray-600';
+  render();
+});
+document.getElementById('listViewBtn').addEventListener('click', ()=>{
+  viewMode='list';
+  document.getElementById('listViewBtn').className='px-3 py-2.5 bg-orange-500 text-white font-semibold';
+  document.getElementById('gridViewBtn').className='px-3 py-2.5 bg-gray-100 text-gray-600';
+  render();
+});
+
+document.getElementById('resetFiltersBtn').addEventListener('click', ()=>{
+  filters = {search:'', players:null, weightMin:null, weightMax:null, categories:new Set(), mechanics:new Set(), sort:'name_asc'};
+  document.getElementById('searchInput').value='';
+  document.getElementById('playerCountInput').value='';
+  ['weightMin','weightMax'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('sortSelect').value='name_asc';
+  document.querySelectorAll('.checklist input[type=checkbox]').forEach(cb=>cb.checked=false);
+  render();
+});
+document.getElementById('addBtn').addEventListener('click', ()=>openForm(null));
+
+document.querySelectorAll('[data-close]').forEach(el=>{
+  el.addEventListener('click', ()=>hideOverlay(el.dataset.close));
+});
+function showOverlay(id){ const el=document.getElementById(id); el.classList.remove('hidden'); el.classList.add('flex'); }
+function hideOverlay(id){ const el=document.getElementById(id); el.classList.add('hidden'); el.classList.remove('flex'); }
+document.querySelectorAll('#detailOverlay,#formOverlay').forEach(ov=>{
+  ov.addEventListener('click', (e)=>{ if(e.target===ov) hideOverlay(ov.id); });
+});
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape'){ hideOverlay('detailOverlay'); hideOverlay('formOverlay'); }
+});
+
+/* ================= INIT ================= */
+async function init(){
+  // Tampilkan data cadangan dulu biar UI langsung ada isinya (tidak nunggu network).
+  games = loadGamesLocal();
+  buildAllFilterLists();
+  render();
+
+  // Lalu coba timpa dengan data LIVE dari Supabase kalau sudah dikonfigurasi.
+  const remote = await loadGamesRemote();
+  if(remote && remote.length){
+    games = remote;
+    isLiveData = true;
+    saveGames(); // cache data live ini jadi fallback offline berikutnya, gantikan snapshot lama
+    buildAllFilterLists();
+    render();
+  }
+  updateLiveBadge();
+}
+init();
+</script>
+</body>
+</html>

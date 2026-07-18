@@ -9,7 +9,11 @@ function json(statusCode, obj) {
 }
 
 function hashIp(ip) {
-  const salt = process.env.IP_HASH_SALT || 'idn-bgdb-default-salt-ganti-kalau-mau';
+  // Salt WAJIB di-set lewat env var Netlify (Site settings -> Environment variables).
+  // Tidak ada default hardcoded: default yang di-commit ke repo = salt publik, bikin ip_hash
+  // gampang di-brute-force kalau tabel submissions bocor. Fail-closed kalau belum di-set.
+  const salt = process.env.IP_HASH_SALT;
+  if (!salt) throw new Error('IP_HASH_SALT belum di-set di environment variables.');
   return crypto.createHash('sha256').update(salt + '|' + ip).digest('hex');
 }
 
@@ -66,7 +70,12 @@ exports.handler = async (event) => {
   }
 
   const ip = getClientIp(event);
-  const ipHash = hashIp(ip);
+  let ipHash;
+  try {
+    ipHash = hashIp(ip);
+  } catch (e) {
+    return json(500, { error: e.message });
+  }
 
   // --- Rate limit sederhana per-IP ---
   const since = new Date(Date.now() - RATE_WINDOW_MS).toISOString();
@@ -97,6 +106,13 @@ exports.handler = async (event) => {
     if (!url) return json(400, { error: 'url wajib diisi' });
     if (!isSafeUrl(url)) return json(400, { error: 'url harus berupa link http/https yang valid' });
 
+    // image opsional, tapi kalau diisi wajib http/https juga (kecuali data:image inline dari upload).
+    // Blokir skema lain (javascript:, dst) supaya tidak nyangkut ke <img src>/href di panel admin.
+    const imageRaw = str(p.image, 2000);
+    if (imageRaw && !/^data:image\//i.test(imageRaw) && !isSafeUrl(imageRaw)) {
+      return json(400, { error: 'image harus berupa link http/https atau data:image yang valid' });
+    }
+
     const categories = strArray(p.categories, 30, 80);
     const mechanics = strArray(p.mechanics, 30, 80);
     if (!categories.length) return json(400, { error: 'categories wajib diisi minimal 1' });
@@ -105,7 +121,7 @@ exports.handler = async (event) => {
     payload = {
       id,
       name,
-      image: str(p.image, 2000),
+      image: imageRaw,
       categories,
       mechanics,
       averageweight: num(p.averageweight, 0),

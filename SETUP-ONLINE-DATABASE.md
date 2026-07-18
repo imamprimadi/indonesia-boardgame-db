@@ -78,7 +78,7 @@ dari satu akun kalau ada beberapa admin.
    | `SUPABASE_URL` | sama seperti di atas |
    | `SUPABASE_SERVICE_ROLE_KEY` | service_role key (SECRET) |
    | `ADMIN_EMAILS` | email admin, pisah koma kalau lebih dari satu, mis. `kamu@email.com,partner@email.com` |
-   | `IP_HASH_SALT` | (opsional) string acak bebas, buat perkuat hash rate-limit IP |
+   | `IP_HASH_SALT` | **WAJIB** — string acak panjang (mis. hasil `openssl rand -hex 32`). Dipakai untuk hash IP rate-limit. Fungsi `submit` sengaja gagal (500) kalau ini belum di-set, supaya tidak ada salt default yang publik. |
 
 3. **Deploy** (atau **Trigger deploy** kalau env var ditambahkan setelah deploy pertama). Netlify otomatis
    `npm install` dependency di `package.json` dan mem-bundle isi `netlify/functions/` jadi endpoint di

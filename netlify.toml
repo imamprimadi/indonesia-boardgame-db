@@ -1,5 +1,8 @@
+# publish = "public": HANYA folder frontend statis (index.html, admin.html, images/, vendor/)
+# yang di-deploy. Source server (netlify/functions, supabase/, package.json, *.md, dst) TIDAK
+# ikut ter-publish — mencegah kebocoran logika validasi, skema DB, & rate-limit ke publik.
 [build]
-  publish = "."
+  publish = "public"
 
 [functions]
   directory = "netlify/functions"
@@ -11,7 +14,10 @@
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "strict-origin-when-cross-origin"
     Permissions-Policy = "geolocation=(), microphone=(), camera=()"
-    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https:; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none';"
+    # Tailwind & supabase-js kini di-host sendiri (public/vendor/*) → 'self', tidak ada origin
+    # pihak ketiga di script-src (menutup risiko supply-chain kalau CDN dikompromikan).
+    # connect-src dibatasi ke host Supabase project ini saja, bukan 'https:' yang longgar.
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https:; connect-src 'self' https://wwhccyjtwbkewwlsqoth.supabase.co wss://wwhccyjtwbkewwlsqoth.supabase.co; frame-ancestors 'none'; base-uri 'self'; form-action 'none'; object-src 'none';"
 
 # admin.html sengaja tidak dipublish di navigasi manapun, tapi tetap tambahkan noindex
 # supaya tidak ikut ke-index mesin pencari.
